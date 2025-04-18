@@ -1,6 +1,10 @@
+import atexit
 import json
 import logging
+import logging.config
+import logging.handlers
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any, override
 
 LOG_RECORD_BUILTIN_ATTRS = {
@@ -30,7 +34,7 @@ LOG_RECORD_BUILTIN_ATTRS = {
 }
 
 
-class SciJSONFormatter(logging.Formatter):
+class LogsJSONFormatter(logging.Formatter):
     def __init__(
         self,
         *,
@@ -74,3 +78,15 @@ class NonErrorFilter(logging.Filter):
     @override
     def filter(self, record: logging.LogRecord) -> bool | logging.LogRecord:
         return record.levelno <= logging.INFO
+
+
+def setup() -> None:
+    config = json.loads(Path("logging.json").read_text())
+    logging.config.dictConfig(config)
+    queue_handler = logging.getHandlerByName("queue_handler")
+    if queue_handler is None:
+        return
+    assert isinstance(queue_handler, logging.handlers.QueueHandler)
+    assert queue_handler.listener is not None
+    queue_handler.listener.start()
+    atexit.register(queue_handler.listener.stop)
